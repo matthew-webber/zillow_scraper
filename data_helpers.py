@@ -238,29 +238,6 @@ class ZillowHome:
         return "${:,.0f}".format(price)
 
 
-def get_zillow_data(headers=None, status='for_sale', area=None, *args, **kwargs):
-    """
-    Get data from url
-    :param area:
-    :param status:
-    :param headers:
-    """
-    if headers is None:
-        headers = req_headers
-
-    if area is None:
-        raise Exception('City is required')
-    else:
-        area = area.replace(' ', '-')
-        area = str(area)
-
-    with requests.Session() as s:
-        url = f'https://www.zillow.com/homes/{status}/{area}'
-        response = s.get(url, headers=req_headers)
-
-    return response
-
-
 def parse_zillow_data(response):
     """
     Parse data from response
@@ -294,18 +271,23 @@ def dump_data(path, _data, indent=4):
     with open(f'{path}.json', 'w') as f:
         json.dump(_data, f, indent=indent)
 
-def get_zillow_data(load=False, area=None, type=None, *args, **kwargs):
+def get_zillow_data(load=False, area=None, type=None, headers=None, *args, **kwargs):
     """
     Get zillow data
     :param load:
     :param area:
     :param type:
     """
+    area = area.replace(' ', '-')
+    area = str(area).lower()
+
+    if headers is None:
+        headers = req_headers
+
     if load:
         try:
             with open(f'{area}_{type}.json', 'r') as f:
                 data = json.load(f)
-                return data
         except FileNotFoundError:
             print('Existing file not found')
             response = input('Retrieve data from zillow? (y/n)')
@@ -318,18 +300,22 @@ def get_zillow_data(load=False, area=None, type=None, *args, **kwargs):
             raise Exception('Area is required')
         if type is None:
             raise Exception('Type is required')
-        data = get_zillow_data_json(get_zillow_data(area=area, type=type))
+
+        try:
+            with requests.Session() as s:
+                url = f'https://www.zillow.com/homes/{type}/{area}'
+                response = s.get(url, headers=req_headers)
+            data = get_zillow_data_json(response)
+        except Exception as e:
+            print(e)
+            return
+
     return data
 
 
 if __name__ == '__main__':
-    # check if zillow_data.json exists and load it into data variable
-    try:
-        with open('zillow_data.json', 'r') as f:
-            data = json.load(f)
-    except FileNotFoundError:
-        r = get_zillow_data(city='Charleston')
-        data = get_zillow_data_json(r)
+    # check if charleston_for_sale.json exists and load it into data variable
+    data = get_zillow_data(area='Charleston', type='for_sale', load=False)
 
     zillow_results = ZillowResults(data)
     zillow_data = ZillowHomeFactory.create_home(zillow_results.data)
